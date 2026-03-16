@@ -1,5 +1,6 @@
 import { generatePKCE } from "@/app/utils/pkce";
-import { EPIC, EPIC_ENDPOINTS } from "@/constant/server/epic";
+import { EPIC } from "@/constant/server/epic";
+import { getSmartConfig } from "@/app/utils/smartDiscovery";
 import { NextRequest, NextResponse } from "next/server";
 import createClientAssertion from "@/app/utils/signjwt";
 import db from "@/lib/db";
@@ -17,6 +18,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     case EPIC.OAUTH_ACTIONS.AUTHORIZE: {
       const { codeVerifier, codeChallenge } = generatePKCE();
       const state = crypto.randomUUID();
+      const nonce = crypto.randomUUID();
 
       console.log("[AUTHORIZE] Starting OAuth flow");
 
@@ -59,17 +61,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       console.log("[REDIRECT] Received callback");
 
       if (error) {
-        console.error("[REDIRECT] OAuth error:", error, errorDescription);
-        return NextResponse.json(
-          { error, error_description: errorDescription },
-          { status: 400 },
-        );
+        return NextResponse.json({ error }, { status: 400 });
       }
 
       if (!code) {
         return NextResponse.json(
           { error: "Authorization code missing" },
-          { status: 400 },
+          { status: 400 }
         );
       }
 
@@ -77,7 +75,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       const codeVerifier = req.cookies.get("pkce_verifier")?.value;
 
       if (!storedState || storedState !== returnedState) {
-        console.error("[REDIRECT] State mismatch!");
         return NextResponse.json(
           { error: "Invalid state parameter" },
           { status: 400 },
@@ -85,10 +82,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       }
 
       if (!codeVerifier) {
-        console.error("[REDIRECT] Missing PKCE verifier!");
         return NextResponse.json(
           { error: "Missing PKCE verifier" },
-          { status: 400 },
+          { status: 400 }
         );
       }
 
@@ -114,13 +110,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       });
 
       const tokenData = await tokenResponse.json();
+      const patientId = tokenData.patient;
 
       console.log("[REDIRECT] Token response status:", tokenData);
 
       if (!tokenResponse.ok) {
         return NextResponse.json(
           { error: "Token exchange failed", details: tokenData },
-          { status: tokenResponse.status },
+          { status: tokenResponse.status }
         );
       }
 
@@ -145,6 +142,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       response.cookies.delete("oauth_state");
       response.cookies.delete("pkce_verifier");
+      response.cookies.delete("oauth_nonce");
 
       return response;
     }
@@ -610,6 +608,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     default:
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid action" },
+        { status: 400 }
+      );
   }
 }
