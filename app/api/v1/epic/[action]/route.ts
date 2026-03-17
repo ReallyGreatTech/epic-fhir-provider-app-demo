@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           response_type: "code",
           client_id: process.env.EPIC_APP_CLIENT_ID,
           redirect_uri: process.env.EPIC_APP_REDIRECT_URI,
-          scope: "openid fhirUser launch offline_access user/Patient.read user/Patient.write user/Appointment.read",          
+          scope: "openid fhirUser launch offline_access user/Patient.read user/Patient.write user/Appointment.read user/Condition.read user/Condition.write user/DiagnosticReport.read user/Observation.read user/Observation.write",          
           aud: process.env.EPIC_FHIR_BASE,
           state: state,
           code_challenge: codeChallenge,
@@ -163,34 +163,32 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         // 1. Fetch all patient IDs from the local SQLite DB
         const stmt = db.prepare('SELECT id FROM patients ORDER BY created_at DESC');
         const rows = stmt.all() as { id: string }[];
+
+        console.log("[PATIENTS_BATCH] Fetched", rows.length, "patients from local DB");
         
         if (rows.length === 0) {
           return NextResponse.json({ entry: [] });
         }
 
         // 2. Construct the FHIR Bundle request
-        const bundle = {
-          resourceType: "Bundle",
-          type: "batch",
-          entry: rows.map((row) => ({
-            request: {
-              method: "GET",
-              url: `Patient/${row.id}`,
-            },
-          })),
-        };
+        const bundleList = rows.map((row) => (row.id));
+        // Join IDs with commas
+        const params = new URLSearchParams();
+        params.append('_id', bundleList.join(','));
 
-        // console.log("[PATIENTS_BATCH] Sending bundle for", rows.length, "patients");
+        console.dir(params, { depth: 4 });
 
         // 3. Send bulk request to Epic
-        const fhirResponse = await fetch(process.env.EPIC_FHIR_BASE!, {
+        const fhirResponse = await fetch(
+          EPIC_ENDPOINTS.FHIR.BULK_DATA, 
+          {
           method: "POST",
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/fhir+json",
+           "content-type": "application/x-www-form-urlencoded",
             Accept: "application/fhir+json",
           },
-          body: JSON.stringify(bundle),
+          body: params.toString()
         });
 
         const rawText = await fhirResponse.text();
@@ -262,7 +260,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             },
           },
         );
-
         const rawText = await fhirResponse.text();
 
         let data;
@@ -273,8 +270,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           data = { rawText };
         }
 
-        console.log("[GET_PATIENT] Response status:", fhirResponse.status);
-        console.log("[GET_PATIENT] Response data:", JSON.stringify(data, null, 2));
+        // console.log("[GET_PATIENT] Response status:", fhirResponse.status);
 
         if (!fhirResponse.ok) {
           console.error(`[GET_PATIENT] Request failed with status ${fhirResponse.status}:`, data);
@@ -319,11 +315,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         if (!patientId) return NextResponse.json({ error: "Missing patient ID" }, { status: 400 });
         // Epic typically requires category or clinical-status for generic condition searches, but we'll try just patient first
         const params: Record<string, string> = { patient: patientId };
-        const category = req.nextUrl.searchParams.get("category");
+        const category = req.nextUrl.searchParams.get("category") || "problem-list-item";
         if (category) params["category"] = category;
         const fhirResponse = await fetch(EPIC_ENDPOINTS.FHIR.CONDITION_SEARCH(params), {
           headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/fhir+json" }
         });
+        console.log("[GET_CONDITIONS] Response status:", fhirResponse);
         const data = await fhirResponse.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
         if (!fhirResponse.ok) return NextResponse.json({ error: "FHIR request failed", details: data }, { status: fhirResponse.status });
         return NextResponse.json(data);
@@ -340,10 +337,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         if (!patientId) return NextResponse.json({ error: "Missing patient ID" }, { status: 400 });
         const params: Record<string, string> = { patient: patientId };
         const category = req.nextUrl.searchParams.get("category");
-        if (category) params["category"] = category;
+        if (category) params["category"] = category || "LAB";
         const fhirResponse = await fetch(EPIC_ENDPOINTS.FHIR.DIAGNOSTIC_REPORT_SEARCH(params), {
           headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/fhir+json" }
         });
+        // console.log("[GET_REPORTS] Response status:", fhirResponse);
         const data = await fhirResponse.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
         if (!fhirResponse.ok) return NextResponse.json({ error: "FHIR request failed", details: data }, { status: fhirResponse.status });
         return NextResponse.json(data);
@@ -451,7 +449,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           },
         );
 
+        // console.log("[CREATE_PATIENT] FHIR response status:", fhirResponse);
         const rawText = await fhirResponse.text();
+        const header:any = fhirResponse.headers;
+        const locationHeader = header?.get("location");
+        console.log("[CREATE_PATIENT] Location header:", locationHeader);
+
         let data;
         try {
           data = rawText ? JSON.parse(rawText) : { rawText };
@@ -470,16 +473,14 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
             { status: fhirResponse.status },
           );
         }
-
-        // As per Epic FHIR API, the location field in response usually returns the created patient ID.
-        // E.g. data.location or via Location header.
-        const locationHeader = fhirResponse.headers.get("location");
+       
         let newPatientId = "";
         
         if (locationHeader) {
-          const parts = locationHeader.split("/Patient/");
+          const parts = locationHeader.split("/");
+          console.log("[CREATE_PATIENT] Parts:", parts);
           if (parts.length > 1) {
-            newPatientId = parts[1].split("/")[0];
+            newPatientId = parts[parts.length - 1];
           }
         } 
         
@@ -549,14 +550,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
               }
             ]
           },
+          category: [
+            {
+              coding: [
+                {
+                  system: "http://terminology.hl7.org",
+                  code: "problem-list-item",
+                  display: "Problem List Item"
+                }
+              ]
+            }
+          ],
           verificationStatus: {
             coding: [
-              {
-                system: "http://terminology.hl7.org/CodeSystem/condition-ver-status",
-                code: "confirmed",
-                display: "Confirmed"
-              }
-            ]
+                {
+                  system: "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+                  code: "provisional",
+                  display: "Provisional"
+                }
+              ]
           },
           code: {
             coding: sctCode ? [
@@ -573,6 +585,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           }
         };
 
+        console.dir(conditionResource, { depth: 4 });
+
         const fhirResponse = await fetch(EPIC_ENDPOINTS.FHIR.CONDITION_CREATE, {
           method: "POST",
           headers: {
@@ -583,7 +597,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           body: JSON.stringify(conditionResource),
         });
 
+        console.log("[CREATE_CONDITION] Response status:", fhirResponse);
         const rawText = await fhirResponse.text();
+        console.dir(rawText, { depth: 4 });
         let data;
         try {
           data = rawText ? JSON.parse(rawText) : { rawText };

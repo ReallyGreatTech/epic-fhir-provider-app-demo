@@ -20,6 +20,7 @@ const EPIC_ENDPOINTS = {
         CONDITION_CREATE: `${EPIC_FHIR_BASE}/Condition`,
         DIAGNOSTIC_REPORT_SEARCH: (query?: Record<string, string>) =>
             query ? `${EPIC_FHIR_BASE}/DiagnosticReport?${qs.stringify(query)}` : `${EPIC_FHIR_BASE}/DiagnosticReport`,
+        BULK_DATA: `${EPIC_FHIR_BASE}/Patient/_search`
     }
 }
 
