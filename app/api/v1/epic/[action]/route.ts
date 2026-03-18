@@ -15,10 +15,19 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
   switch (action) {
     case EPIC.OAUTH_ACTIONS.AUTHORIZE: {
+      console.log("[AUTHORIZE] Starting OAuth flow");
+
+
+      const existingState = req.cookies.get("oauth_state")?.value;
+  
+      if (existingState) {
+        console.log("[AUTHORIZE] Flow already in progress, ignoring duplicate");
+        return NextResponse.redirect(new URL("/", req.nextUrl.origin));
+      }
+
       const { codeVerifier, codeChallenge } = generatePKCE();
       const state = crypto.randomUUID();
 
-      console.log("[AUTHORIZE] Starting OAuth flow");
 
       const response = NextResponse.redirect(
         EPIC_ENDPOINTS.OAUTH.AUTHORIZE({
