@@ -118,7 +118,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
       const tokenData = await tokenResponse.json();
 
-      console.log("[REDIRECT] Token response status:", tokenData);
+      // console.log("[REDIRECT] Token response status:", tokenData);
 
       if (!tokenResponse.ok) {
         return NextResponse.json(
@@ -323,7 +323,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         const fhirResponse = await fetch(EPIC_ENDPOINTS.FHIR.CONDITION_SEARCH(params), {
           headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/fhir+json" }
         });
-        console.log("[GET_CONDITIONS] Response status:", fhirResponse);
+        // console.log("[GET_CONDITIONS] Response status:", fhirResponse);
         const data = await fhirResponse.text().then(t => t ? JSON.parse(t) : null).catch(() => null);
         if (!fhirResponse.ok) return NextResponse.json({ error: "FHIR request failed", details: data }, { status: fhirResponse.status });
         return NextResponse.json(data);
@@ -456,12 +456,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         const rawText = await fhirResponse.text();
         const header:any = fhirResponse.headers;
         const locationHeader = header?.get("location");
-        console.log("[CREATE_PATIENT] Location header:", locationHeader);
+        // console.log("[CREATE_PATIENT] Location header:", locationHeader);
 
         let data;
         try {
           data = rawText ? JSON.parse(rawText) : { rawText };
-          console.log("[CREATE_PATIENT] Raw text:", data);
+          // console.log("[CREATE_PATIENT] Raw text:", data);
 
         } catch (e) {
           console.error("[CREATE_PATIENT] Failed to parse JSON. Raw body:", rawText);
@@ -481,7 +481,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         
         if (locationHeader) {
           const parts = locationHeader.split("/");
-          console.log("[CREATE_PATIENT] Parts:", parts);
+          // console.log("[CREATE_PATIENT] Parts:", parts);
           if (parts.length > 1) {
             newPatientId = parts[parts.length - 1];
           }
@@ -600,7 +600,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           body: JSON.stringify(conditionResource),
         });
 
-        console.log("[CREATE_CONDITION] Response status:", fhirResponse);
+        // console.log("[CREATE_CONDITION] Response status:", fhirResponse);
         const rawText = await fhirResponse.text();
         console.dir(rawText, { depth: 4 });
         let data;
