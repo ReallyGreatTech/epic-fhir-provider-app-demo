@@ -76,6 +76,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       const storedState = req.cookies.get("oauth_state")?.value;
       const codeVerifier = req.cookies.get("pkce_verifier")?.value;
 
+      console.log("[REDIRECT] Stored state:", storedState);
+      console.log("[REDIRECT] Returned state:", returnedState);
+
       if (!storedState || storedState !== returnedState) {
         console.error("[REDIRECT] State mismatch!");
         return NextResponse.json(
