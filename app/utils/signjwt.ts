@@ -1,9 +1,12 @@
 import { SignJWT } from "jose";
 import { createPrivateKey } from "crypto";
-import fs from "fs";
 
 async function createClientAssertion() {
-  const privateKeyPem = fs.readFileSync("./app/utils/keys/private.pem", "utf8");
+  const privateKeyPem = process.env.EPIC_PRIVATE_KEY;
+
+  if (!privateKeyPem) {
+    throw new Error("EPIC_PRIVATE_KEY is not defined in environment variables");
+  }
 
   const privateKey = createPrivateKey(privateKeyPem);
 
