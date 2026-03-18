@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         EPIC_ENDPOINTS.OAUTH.AUTHORIZE({
           response_type: "code",
           client_id: process.env.EPIC_APP_CLIENT_ID,
-          redirect_uri: process.env.EPIC_APP_REDIRECT_URI,
+          redirect_uri: process.env.EPIC_APP_REDIRECT_URI || new URL("/", req.nextUrl.origin).toString(),
           scope: "openid fhirUser launch offline_access user/Patient.read user/Patient.write user/Appointment.read user/Condition.read user/Condition.write user/DiagnosticReport.read user/Observation.read user/Observation.write",          
           aud: process.env.EPIC_FHIR_BASE,
           state: state,
