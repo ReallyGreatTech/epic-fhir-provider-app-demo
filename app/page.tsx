@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -16,9 +16,9 @@ export default function Home() {
     const errorDescription = params.get("error_description");
 
     if (code && state) {
-      router.push(`/api/v1/epic/redirect?code=${code}&state=${state}`);
+      window.location.href = `/api/v1/epic/redirect?code=${code}&state=${state}`;
     } else if (error) {
-      router.push(`/api/v1/epic/redirect?error=${error}&error_description=${errorDescription}`);
+      window.location.href = `/api/v1/epic/redirect?error=${error}&error_description=${errorDescription}`;
     }
   }, [router]);
 
@@ -77,7 +77,7 @@ export default function Home() {
           <p className="mb-8 text-sm text-indigo-300/80">
             Secure provider-context access to patient data via FHIR R4
           </p>
-
+ 
           {/* Divider */}
           <div className="mx-auto mb-8 h-px w-16 bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent" />
 
@@ -96,7 +96,7 @@ export default function Home() {
           </div>
 
           {/* Connect button */}
-          <Link
+          <a
             href="/api/v1/epic/authorize"
             id="connect-epic-btn"
             className="group relative inline-flex w-full items-center justify-center gap-3 overflow-hidden rounded-xl bg-white px-6 py-4 text-base font-semibold text-indigo-900 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
@@ -130,8 +130,8 @@ export default function Home() {
             >
               <polyline points="9 18 15 12 9 6" />
             </svg>
-          </Link>
-
+          </a>
+ 
           <p className="mt-4 text-xs text-indigo-400/60">
             You will be redirected to Epic&apos;s secure login
           </p>
